@@ -1,0 +1,2 @@
+import { Scissors } from "lucide-react";
+export function EmptyState({title,description}:{title:string;description:string}){return <div className="rounded-3xl border border-dashed bg-white/60 p-10 text-center"><Scissors className="mx-auto mb-4 size-9 text-primary"/><h3 className="font-serif text-xl font-bold">{title}</h3><p className="mx-auto mt-2 max-w-md text-sm text-muted">{description}</p></div>}

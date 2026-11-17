@@ -1,0 +1,2 @@
+import { PasswordForm } from "@/components/auth/password-form"; export const metadata={title:"Password baru"};
+export default function ResetPasswordPage(){return <div className="container-page grid min-h-[65vh] place-items-center py-12"><div className="w-full max-w-md rounded-3xl border bg-white p-7 soft-shadow"><h1 className="font-serif text-3xl font-bold">Buat password baru</h1><p className="mb-6 mt-2 text-sm text-muted">Gunakan password yang kuat dan belum pernah digunakan.</p><PasswordForm/></div></div>}

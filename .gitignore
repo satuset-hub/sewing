@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.env*
+!.env.example
+coverage/
+*.log
+.vercel/
+.npm-cache/
+*.tsbuildinfo
+supabase/.temp/
+remote_schema_before.sql

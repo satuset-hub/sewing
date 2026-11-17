@@ -1,0 +1,2 @@
+import { Badge } from "@/components/ui/badge"; import { STATUS_LABEL } from "@/lib/constants";
+export function StatusBadge({status}:{status:string}){const color=status==="CONFIRMED"||status==="COMPLETED"||status==="VERIFIED"?"bg-success/10 text-success":status==="CANCELLED"||status==="REJECTED"||status==="EXPIRED"?"bg-danger/10 text-danger":"bg-warning/10 text-warning";return <Badge className={color}>{STATUS_LABEL[status]??status}</Badge>}

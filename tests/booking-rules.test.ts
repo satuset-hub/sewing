@@ -1,0 +1,21 @@
+import { describe,expect,it } from "vitest"; import { activeBookings,book,cancel,canBook,changeCapacity,changeTheme,type RuleBooking,type RuleDate } from "@/lib/booking-rules";
+const date=():RuleDate=>({capacity:3,themeId:null,lockedByAdmin:false,isOpen:true,bookings:[]});
+const booking=(id:string,memberId:string,themeId="theme-a"):RuleBooking=>({id,memberId,themeId,status:"PENDING_ADMIN"});
+describe("aturan booking kritis",()=>{
+it("tanggal kosong menerima dan mengunci tema pertama",()=>{const d=date();expect(book(d,booking("1","m1"))).toMatchObject({ok:true});expect(d.themeId).toBe("theme-a")});
+it("pendaftaran kedua dengan tema sama berhasil",()=>{const d=date();book(d,booking("1","m1"));expect(book(d,booking("2","m2"))).toMatchObject({ok:true})});
+it("tema berbeda ditolak",()=>{const d=date();book(d,booking("1","m1"));expect(book(d,booking("2","m2","theme-b"))).toMatchObject({code:"THEME_MISMATCH"})});
+it("pendaftaran keempat ditolak",()=>{const d=date();[1,2,3].forEach(n=>book(d,booking(String(n),`m${n}`)));expect(book(d,booking("4","m4"))).toMatchObject({code:"CLASS_FULL"})});
+it("permintaan bersamaan tidak melebihi kuota",async()=>{const d=date();await Promise.all([1,2,3,4,5].map(async n=>book(d,booking(String(n),`m${n}`))));expect(activeBookings(d)).toHaveLength(3)});
+it("dua tema pertama tidak sama-sama terkunci",async()=>{const d=date();const results=await Promise.all([book(d,booking("1","m1","a")),book(d,booking("2","m2","b"))]);expect(results.filter(r=>r.ok)).toHaveLength(1);expect(["a","b"]).toContain(d.themeId)});
+it("pembatalan mengembalikan kursi",()=>{const d=date();book(d,booking("1","m1"));cancel(d,"1");expect(activeBookings(d)).toHaveLength(0);expect(canBook(d,"m2","theme-a").ok).toBe(true)});
+it("tema tetap terkunci jika booking aktif tersisa",()=>{const d=date();book(d,booking("1","m1"));book(d,booking("2","m2"));cancel(d,"1");expect(d.themeId).toBe("theme-a")});
+it("tema lepas jika seluruh booking dibatalkan",()=>{const d=date();book(d,booking("1","m1"));cancel(d,"1");expect(d.themeId).toBeNull()});
+it("tema tidak lepas bila dikunci admin",()=>{const d=date();d.themeId="theme-a";d.lockedByAdmin=true;book(d,booking("1","m1"));cancel(d,"1");expect(d.themeId).toBe("theme-a")});
+it("admin tidak dapat mengubah tema dengan booking aktif",()=>{const d=date();book(d,booking("1","m1"));expect(changeTheme(d,"theme-b")).toMatchObject({code:"THEME_HAS_ACTIVE_BOOKINGS"})});
+it("member lama dapat booking tanggal lain",()=>{const first=date(),second=date();book(first,booking("1","m1"));expect(book(second,booking("2","m1"))).toMatchObject({ok:true})});
+it("member tidak dapat booking dua kali di tanggal sama",()=>{const d=date();book(d,booking("1","m1"));expect(book(d,booking("2","m1"))).toMatchObject({code:"ALREADY_BOOKED"})});
+it("kapasitas di bawah booking aktif ditolak",()=>{const d=date();book(d,booking("1","m1"));book(d,booking("2","m2"));expect(changeCapacity(d,1)).toMatchObject({code:"CAPACITY_BELOW_ACTIVE_BOOKINGS"});expect(d.capacity).toBe(3)});
+it("booking completed tetap mengisi kapasitas historis",()=>{const d=date();const b=booking("1","m1");b.status="COMPLETED";d.bookings.push(b);expect(activeBookings(d)).toHaveLength(1)});
+it("booking confirmed tidak dianggap dapat expired",()=>{const d=date();const b=booking("1","m1");b.status="CONFIRMED";d.bookings.push(b);expect(activeBookings(d)).toHaveLength(1)});
+});
