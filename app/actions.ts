@@ -8,6 +8,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getCurrentUser, requireAdmin, requireMember } from "@/lib/auth";
 import { loginSchema, registrationSchema, themeSchema } from "@/lib/validation";
 import { normalizeIndonesianPhone } from "@/lib/utils";
+import { resolvePostLoginPath, type AppRole } from "@/lib/auth-routing";
 
 export type ActionState = { ok: boolean; message?: string; fieldErrors?: Record<string, string[]>; data?: Record<string, string> };
 const initialError = (message: string): ActionState => ({ ok: false, message });
@@ -16,9 +17,14 @@ export async function loginAction(_: ActionState, formData: FormData): Promise<A
   const parsed = loginSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { ok: false, message: "Periksa email dan password.", fieldErrors: parsed.error.flatten().fieldErrors };
   const supabase = await createClient();
-  const { error } = await supabase.auth.signInWithPassword({ email: parsed.data.email, password: parsed.data.password });
+  const { data, error } = await supabase.auth.signInWithPassword({ email: parsed.data.email, password: parsed.data.password });
   if (error) return initialError("Email atau password tidak sesuai.");
-  redirect(parsed.data.next || "/member");
+  const { data: profile, error: profileError } = await supabase.from("profiles").select("role").eq("id", data.user.id).single();
+  if (profileError || !profile) {
+    await supabase.auth.signOut();
+    return initialError("Profil akun tidak dapat dibaca. Silakan hubungi admin.");
+  }
+  redirect(resolvePostLoginPath(profile.role as AppRole, parsed.data.next));
 }
 
 export async function logoutAction() {
