@@ -2,10 +2,9 @@ import Link from "next/link";
 import { addMonths, endOfMonth, format, parseISO, startOfMonth, subMonths } from "date-fns";
 import { id } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, MessageCircle } from "lucide-react";
-import { toggleClassDateAction } from "@/app/actions";
+import { AdminCalendarDayCard } from "@/components/admin/calendar-day-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { SubmitButton } from "@/components/shared/submit-button";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Notice } from "@/components/ui/notice";
@@ -24,13 +23,14 @@ export default async function AdminCalendar({ searchParams }: { searchParams: Se
   const selected = query.date && query.date >= from && query.date <= to ? query.date : format(base, "yyyy-MM-dd");
   const supabase = await createClient();
 
-  const [dates, selectedDate] = await Promise.all([
+  const [dates, selectedDate, themes] = await Promise.all([
     getCalendarAvailability(from, to),
     supabase
       .from("class_dates")
       .select("id,class_date,start_time,end_time,capacity,is_open,notes,class_themes(title),bookings(id,booking_code,status,profiles(full_name,phone),payments(status))")
       .eq("class_date", selected)
       .maybeSingle(),
+    supabase.from("class_themes").select("id,title").eq("is_active", true).order("sort_order").order("title"),
   ]);
 
   const selectedAvailability = dates.find((date) => date.class_date === selected);
@@ -54,7 +54,7 @@ export default async function AdminCalendar({ searchParams }: { searchParams: Se
       description="Aktifkan atau nonaktifkan tanggal langsung dari kalender. Klik tanggal untuk melihat kelas dan peserta."
     />
     {query.error && <div className="mb-4"><Notice message={decodeURIComponent(query.error)} /></div>}
-    {query.saved && <div className="mb-4"><Notice message="Status tanggal berhasil diperbarui." success /></div>}
+    {query.saved && <div className="mb-4"><Notice message={query.saved === "lock" ? "Tema tanggal berhasil dikunci." : "Status tanggal berhasil diperbarui."} success /></div>}
 
     <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_380px] xl:items-start">
     <Card>
@@ -76,36 +76,22 @@ export default async function AdminCalendar({ searchParams }: { searchParams: Se
             const isPast = date.status === "PAST";
             const isOn = !["CLOSED", "HOLIDAY", "PAST"].includes(date.status);
             const isSelected = selected === date.class_date;
-            return <div
+            return <AdminCalendarDayCard
               key={date.class_date}
-              className={cn("min-h-24 rounded-lg border p-1 text-left sm:min-h-28 sm:rounded-xl sm:p-2", statusClass[date.status], isSelected && "ring-2 ring-primary")}
-            >
-              <Link
-                href={`/admin/kalender?month=${month}&date=${date.class_date}`}
-                className="block min-h-12 rounded-md p-0.5 hover:bg-white/50 sm:min-h-14"
-                aria-label={`Lihat informasi ${formatDateID(date.class_date)}`}
-              >
-                <b className="text-xs sm:text-sm">{Number(date.class_date.slice(-2))}</b>
-                <span className="mt-1 block truncate text-[8px] font-semibold sm:text-[10px]">{date.theme_title || (date.status === "FULL" ? "Penuh" : "Belum ada kelas")}</span>
-                <span className="block text-[8px] sm:text-[10px]">{date.active_bookings}/{date.capacity} peserta</span>
-              </Link>
-              <form action={toggleClassDateAction} className="mt-1 flex justify-center">
-                <input type="hidden" name="date" value={date.class_date} />
-                <input type="hidden" name="month" value={month} />
-                <input type="hidden" name="isOpen" value={String(!isOn)} />
-                <SubmitButton
-                  type="submit"
-                  role="switch"
-                  aria-checked={isOn}
-                  aria-label={`${isOn ? "Nonaktifkan" : "Aktifkan"} ${formatDateID(date.class_date)}`}
-                  disabled={isPast}
-                  pendingText="…"
-                  className={cn("h-6 min-w-12 px-2 text-[9px] sm:h-7 sm:min-w-14 sm:text-[10px]", isOn ? "bg-success hover:bg-success/90" : "bg-stone-500 hover:bg-stone-600")}
-                >
-                  {isOn ? "ON" : "OFF"}
-                </SubmitButton>
-              </form>
-            </div>;
+              date={date.class_date}
+              formattedDate={formatDateID(date.class_date)}
+              dayNumber={Number(date.class_date.slice(-2))}
+              month={month}
+              isOn={isOn}
+              isPast={isPast}
+              isSelected={isSelected}
+              statusClass={statusClass[date.status]}
+              themeId={date.theme_id}
+              themeTitle={date.theme_title || (date.status === "FULL" ? "Penuh" : null)}
+              activeBookings={date.active_bookings}
+              capacity={date.capacity}
+              themes={themes.data || []}
+            />;
           })}
         </div>
       </CardContent>

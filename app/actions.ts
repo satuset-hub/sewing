@@ -259,6 +259,33 @@ export async function toggleClassDateAction(formData: FormData) {
   redirect(`/admin/kalender?month=${month}&date=${date}&saved=1`);
 }
 
+export async function lockClassDateAction(formData: FormData) {
+  await requireAdmin();
+  const date = String(formData.get("date") || "");
+  const month = String(formData.get("month") || date.slice(0, 7));
+  const themeId = String(formData.get("themeId") || "");
+  const validDate = /^\d{4}-\d{2}-\d{2}$/.test(date);
+  const validTheme = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(themeId);
+  if (!validDate || !validTheme) redirect(`/admin/kalender?month=${month}&date=${date}&error=${encodeURIComponent("Tanggal atau tema belum valid.")}`);
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc("admin_lock_class_date", { p_date: date, p_theme_id: themeId });
+  if (error) {
+    const messages: Record<string, string> = {
+      DATE_IN_PAST: "Tanggal yang sudah lewat tidak dapat dikunci.",
+      DATE_UNAVAILABLE: "Aktifkan tanggal terlebih dahulu sebelum memilih lock.",
+      THEME_UNAVAILABLE: "Tema yang dipilih sudah tidak aktif.",
+      THEME_HAS_ACTIVE_BOOKINGS: "Tema tidak dapat diganti karena tanggal sudah memiliki peserta aktif.",
+    };
+    const message = messages[error.message] || "Tema tanggal gagal dikunci.";
+    redirect(`/admin/kalender?month=${month}&date=${date}&error=${encodeURIComponent(message)}`);
+  }
+
+  revalidatePath("/admin/kalender");
+  revalidatePath("/kelas");
+  redirect(`/admin/kalender?month=${month}&date=${date}&saved=lock`);
+}
+
 export async function rescheduleBookingAction(formData: FormData) {
   await requireAdmin();
   const id=String(formData.get("bookingId")); const date=String(formData.get("targetDate"));

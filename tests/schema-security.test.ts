@@ -6,6 +6,7 @@ const schema=readFileSync(resolve("supabase/migrations/202611170001_initial_sche
 const multiSession=readFileSync(resolve("supabase/migrations/202611170006_multi_session_registration.sql"),"utf8");
 const profileRegions=readFileSync(resolve("supabase/migrations/202611170007_profile_regions.sql"),"utf8");
 const profileRegionCodes=readFileSync(resolve("supabase/migrations/202611170008_profile_region_codes.sql"),"utf8");
+const adminLockDate=readFileSync(resolve("supabase/migrations/202611180002_admin_lock_class_date.sql"),"utf8");
 
 describe("jaminan schema dan keamanan",()=>{
   it("mengaktifkan RLS pada seluruh tabel operasional",()=>{
@@ -57,5 +58,12 @@ describe("jaminan schema dan keamanan",()=>{
       expect(profileRegionCodes).toContain(`add column if not exists ${column}`);
       expect(profileRegionCodes).toContain(`new.raw_user_meta_data->>'${column}'`);
     }
+  });
+  it("lock tema tanggal hanya tersedia untuk admin dan melindungi booking aktif",()=>{
+    expect(adminLockDate).toContain("public.is_admin(auth.uid())");
+    expect(adminLockDate).toContain("pg_advisory_xact_lock");
+    expect(adminLockDate).toContain("THEME_HAS_ACTIVE_BOOKINGS");
+    expect(adminLockDate).toContain("locked_by_admin=true");
+    expect(adminLockDate).toContain("grant execute on function public.admin_lock_class_date");
   });
 });
