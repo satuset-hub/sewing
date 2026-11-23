@@ -1,17 +1,16 @@
 import Link from "next/link";
-import { ArrowDownCircle, ArrowUpCircle, CalendarCheck2, CalendarClock, ClipboardList, CreditCard, Hourglass, Paperclip, PiggyBank, UsersRound, WalletCards } from "lucide-react";
-import { CashTransactionForm } from "@/components/admin/cash-transaction-form";
+import { ArrowDownCircle, ArrowUpCircle, CalendarCheck2, CalendarClock, ClipboardList, CreditCard, Hourglass, PiggyBank, Plus, UsersRound, WalletCards } from "lucide-react";
 import { StatsCard } from "@/components/admin/stats-card";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateID, formatRupiah } from "@/lib/utils";
 
-type SearchParams = Promise<{ period?: string; month?: string; cashSaved?: string; cashError?: string }>;
-type CashRow = { id: string; transaction_type: "INCOME" | "EXPENSE"; transaction_date: string; amount: number | string; category: string; description: string; receipt_path: string | null; created_at: string };
+type SearchParams = Promise<{ period?: string; month?: string }>;
 
 function calendarDate(date: Date) { return date.toISOString().slice(0, 10); }
 
@@ -43,8 +42,8 @@ export default async function AdminDashboard({ searchParams }: { searchParams: S
   const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(params.month || "") ? String(params.month) : today.slice(0, 7);
   const range = periodRange(today, period, month);
 
-  let filteredPaymentsQuery = supabase.from("payments").select("id,amount_received,paid_at,created_at,bookings(booking_code,profiles(full_name),class_themes(title))").eq("status", "VERIFIED").order("paid_at", { ascending: false });
-  let filteredCashQuery = supabase.from("cash_transactions").select("id,transaction_type,transaction_date,amount,category,description,receipt_path,created_at").order("transaction_date", { ascending: false }).order("created_at", { ascending: false });
+  let filteredPaymentsQuery = supabase.from("payments").select("amount_received,paid_at").eq("status", "VERIFIED");
+  let filteredCashQuery = supabase.from("cash_transactions").select("transaction_type,transaction_date,amount");
   if (range.start && range.end) {
     filteredPaymentsQuery = filteredPaymentsQuery.gte("paid_at", `${range.start}T00:00:00+07:00`).lte("paid_at", `${range.end}T23:59:59.999+07:00`);
     filteredCashQuery = filteredCashQuery.gte("transaction_date", range.start).lte("transaction_date", range.end);
@@ -65,23 +64,13 @@ export default async function AdminDashboard({ searchParams }: { searchParams: S
     supabase.from("cash_transactions").select("transaction_type,amount"),
   ]);
 
-  const cashRows = (filteredCash.data || []) as CashRow[];
+  const cashRows = (filteredCash.data || []) as Array<{ transaction_type: "INCOME" | "EXPENSE"; amount: number | string }>;
   const manualIncome = amountSum(cashRows.filter((row) => row.transaction_type === "INCOME"));
   const expenses = amountSum(cashRows.filter((row) => row.transaction_type === "EXPENSE"));
   const income = amountSum(filteredPayments.data || []) + manualIncome;
   const difference = income - expenses;
   const allManualRows = (allCash.data || []) as Array<{ transaction_type: "INCOME" | "EXPENSE"; amount: number | string }>;
   const currentBalance = amountSum(allPayments.data || []) + amountSum(allManualRows.filter((row) => row.transaction_type === "INCOME")) - amountSum(allManualRows.filter((row) => row.transaction_type === "EXPENSE"));
-
-  const paymentTransactions = (filteredPayments.data || []).map((payment: any) => ({
-    id: `payment-${payment.id}`, originalId: payment.id,
-    date: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Jakarta" }).format(new Date(payment.paid_at || payment.created_at)),
-    createdAt: payment.paid_at || payment.created_at, type: "INCOME" as const, category: "Kursus",
-    description: `${payment.bookings?.profiles?.full_name || "Member"} · ${payment.bookings?.class_themes?.title || payment.bookings?.booking_code || "Pembayaran kursus"}`,
-    amount: Number(payment.amount_received), source: "Pembayaran otomatis", receipt: false,
-  }));
-  const manualTransactions = cashRows.map((row) => ({ id: row.id, originalId: row.id, date: row.transaction_date, createdAt: row.created_at, type: row.transaction_type, category: row.category, description: row.description, amount: Number(row.amount), source: row.receipt_path ? "Struk" : "Manual", receipt: Boolean(row.receipt_path) }));
-  const transactions = [...paymentTransactions, ...manualTransactions].sort((a, b) => b.date.localeCompare(a.date) || b.createdAt.localeCompare(a.createdAt));
 
   const operationalStats = [
     [UsersRound, "Total member", profiles.count || 0], [ClipboardList, "Total pendaftaran", bookings.count || 0],
@@ -98,22 +87,14 @@ export default async function AdminDashboard({ searchParams }: { searchParams: S
         <div className="flex flex-wrap items-center gap-2">
           {[["week", "Minggu ini"], ["month", "Bulanan"], ["all", "Semua"]].map(([value, label]) => <Link key={value} href={`/admin?period=${value}${value === "month" ? `&month=${month}` : ""}#keuangan`} className={`rounded-full border px-4 py-2 text-xs font-semibold ${period === value ? "border-primary bg-primary text-white" : "bg-white hover:bg-cream"}`}>{label}</Link>)}
           {period === "month" && <form method="get" className="flex items-center gap-2"><input type="hidden" name="period" value="month"/><Input aria-label="Pilih bulan" type="month" name="month" defaultValue={month} className="h-9 w-40"/><button className="rounded-full border bg-white px-3 py-2 text-xs font-semibold" type="submit">Tampilkan</button></form>}
+          <Button asChild size="sm"><Link href="/admin/transaksi#tambah"><Plus className="size-4"/>Tambah Transaksi</Link></Button>
         </div>
       </div>
-      {(params.cashSaved || params.cashError) && <div className={`mb-4 rounded-2xl border px-4 py-3 text-sm ${params.cashError ? "border-red-200 bg-red-50 text-red-700" : "border-green-200 bg-green-50 text-green-700"}`}>{params.cashError || "Transaksi berhasil disimpan."}</div>}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatsCard icon={ArrowUpCircle} label={`Pemasukan · ${range.label}`} value={formatRupiah(income)} />
         <StatsCard icon={ArrowDownCircle} label={`Pengeluaran · ${range.label}`} value={formatRupiah(expenses)} />
         <StatsCard icon={WalletCards} label={`Selisih kas · ${range.label}`} value={formatRupiah(difference)} />
         <StatsCard icon={PiggyBank} label="Saldo kas saat ini" value={formatRupiah(currentBalance)} />
-      </div>
-      <Card className="mt-5"><CardContent className="p-6"><div className="mb-5"><h3 className="font-serif text-xl font-bold">Tambah transaksi</h3><p className="mt-1 text-sm text-muted">Isi manual atau unggah foto struk untuk membantu mengisi datanya.</p></div><CashTransactionForm today={today}/></CardContent></Card>
-      <div className="mt-5 overflow-hidden rounded-3xl border bg-white soft-shadow">
-        <div className="flex items-center justify-between gap-3 border-b p-5"><div><h3 className="font-serif text-xl font-bold">Transaksi</h3><p className="text-xs text-muted">{range.label} · {transactions.length} transaksi</p></div></div>
-        <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-left text-sm"><thead className="bg-cream text-xs text-muted"><tr>{["Tanggal", "Keterangan", "Kategori", "Sumber", "Masuk", "Keluar", "Bukti"].map((heading) => <th className="p-4" key={heading}>{heading}</th>)}</tr></thead><tbody>
-          {transactions.map((transaction) => <tr key={transaction.id} className="border-t"><td className="whitespace-nowrap p-4">{formatDateID(transaction.date)}</td><td className="p-4 font-semibold">{transaction.description}</td><td className="p-4">{transaction.category}</td><td className="p-4 text-xs text-muted">{transaction.source}</td><td className="p-4 font-semibold text-success">{transaction.type === "INCOME" ? formatRupiah(transaction.amount) : "—"}</td><td className="p-4 font-semibold text-red-600">{transaction.type === "EXPENSE" ? formatRupiah(transaction.amount) : "—"}</td><td className="p-4">{transaction.receipt ? <Link href={`/admin/receipts/${transaction.originalId}`} target="_blank" className="inline-flex items-center gap-1 font-semibold text-primary"><Paperclip className="size-4"/>Buka</Link> : "—"}</td></tr>)}
-          {!transactions.length && <tr><td colSpan={7} className="p-8 text-center text-muted">Belum ada transaksi pada periode ini.</td></tr>}
-        </tbody></table></div>
       </div>
     </section>
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{operationalStats.map(([Icon, label, value]) => <StatsCard key={label} icon={Icon} label={label} value={value}/>)}</div>
