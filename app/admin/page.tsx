@@ -29,9 +29,7 @@ function periodRange(today: string, period: string, month: string) {
   return { start: `${month}-01`, end: calendarDate(end), label };
 }
 
-function amountSum(rows: Array<{ amount?: number | string; amount_received?: number | string }>) {
-  return rows.reduce((sum, row) => sum + Number(row.amount ?? row.amount_received ?? 0), 0);
-}
+type DashboardSummary = { members: number; bookings: number; new_bookings: number; awaiting_payment: number; payment_review: number; confirmed: number; today_classes: number; period_course_income: number; period_manual_income: number; period_expense: number; current_balance: number };
 
 export default async function AdminDashboard({ searchParams }: { searchParams: SearchParams }) {
   await requireAdmin();
@@ -42,41 +40,22 @@ export default async function AdminDashboard({ searchParams }: { searchParams: S
   const month = /^\d{4}-(0[1-9]|1[0-2])$/.test(params.month || "") ? String(params.month) : today.slice(0, 7);
   const range = periodRange(today, period, month);
 
-  let filteredPaymentsQuery = supabase.from("payments").select("amount_received,paid_at").eq("status", "VERIFIED");
-  let filteredCashQuery = supabase.from("cash_transactions").select("transaction_type,transaction_date,amount");
-  if (range.start && range.end) {
-    filteredPaymentsQuery = filteredPaymentsQuery.gte("paid_at", `${range.start}T00:00:00+07:00`).lte("paid_at", `${range.end}T23:59:59.999+07:00`);
-    filteredCashQuery = filteredCashQuery.gte("transaction_date", range.start).lte("transaction_date", range.end);
-  }
-
-  const [profiles, bookings, newBookings, awaiting, review, confirmed, todayClasses, recent, upcoming, filteredPayments, filteredCash, allPayments, allCash] = await Promise.all([
-    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "member"),
-    supabase.from("bookings").select("id", { count: "exact", head: true }),
-    supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "PENDING_ADMIN"),
-    supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "AWAITING_PAYMENT"),
-    supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "PAYMENT_REVIEW"),
-    supabase.from("bookings").select("id", { count: "exact", head: true }).eq("status", "CONFIRMED"),
-    supabase.from("class_dates").select("id", { count: "exact", head: true }).eq("class_date", today),
+  const [summaryResult, recent, upcoming] = await Promise.all([
+    supabase.rpc("admin_dashboard_summary", { p_start: range.start, p_end: range.end }),
     supabase.from("bookings").select("id,booking_code,status,created_at,profiles(full_name),class_themes(title)").order("created_at", { ascending: false }).limit(6),
     supabase.from("class_dates").select("class_date,start_time,capacity,class_themes(title),bookings(id,status)").gte("class_date", today).order("class_date").limit(5),
-    filteredPaymentsQuery, filteredCashQuery,
-    supabase.from("payments").select("amount_received").eq("status", "VERIFIED"),
-    supabase.from("cash_transactions").select("transaction_type,amount"),
   ]);
-
-  const cashRows = (filteredCash.data || []) as Array<{ transaction_type: "INCOME" | "EXPENSE"; amount: number | string }>;
-  const manualIncome = amountSum(cashRows.filter((row) => row.transaction_type === "INCOME"));
-  const expenses = amountSum(cashRows.filter((row) => row.transaction_type === "EXPENSE"));
-  const income = amountSum(filteredPayments.data || []) + manualIncome;
+  const emptySummary: DashboardSummary = { members: 0, bookings: 0, new_bookings: 0, awaiting_payment: 0, payment_review: 0, confirmed: 0, today_classes: 0, period_course_income: 0, period_manual_income: 0, period_expense: 0, current_balance: 0 };
+  const summary = { ...emptySummary, ...((summaryResult.data || {}) as Partial<DashboardSummary>) };
+  const income = Number(summary.period_course_income) + Number(summary.period_manual_income);
+  const expenses = Number(summary.period_expense);
   const difference = income - expenses;
-  const allManualRows = (allCash.data || []) as Array<{ transaction_type: "INCOME" | "EXPENSE"; amount: number | string }>;
-  const currentBalance = amountSum(allPayments.data || []) + amountSum(allManualRows.filter((row) => row.transaction_type === "INCOME")) - amountSum(allManualRows.filter((row) => row.transaction_type === "EXPENSE"));
 
   const operationalStats = [
-    [UsersRound, "Total member", profiles.count || 0], [ClipboardList, "Total pendaftaran", bookings.count || 0],
-    [Hourglass, "Booking baru", newBookings.count || 0], [CreditCard, "Menunggu pembayaran", awaiting.count || 0],
-    [WalletCards, "Menunggu verifikasi", review.count || 0], [CalendarCheck2, "Terkonfirmasi", confirmed.count || 0],
-    [CalendarClock, "Kelas hari ini", todayClasses.count || 0],
+    [UsersRound, "Total member", summary.members], [ClipboardList, "Total pendaftaran", summary.bookings],
+    [Hourglass, "Booking baru", summary.new_bookings], [CreditCard, "Menunggu pembayaran", summary.awaiting_payment],
+    [WalletCards, "Menunggu verifikasi", summary.payment_review], [CalendarCheck2, "Terkonfirmasi", summary.confirmed],
+    [CalendarClock, "Kelas hari ini", summary.today_classes],
   ] as const;
 
   return <>
@@ -91,7 +70,7 @@ export default async function AdminDashboard({ searchParams }: { searchParams: S
         <StatsCard icon={ArrowUpCircle} label={`Pemasukan · ${range.label}`} value={formatRupiah(income)} />
         <StatsCard icon={ArrowDownCircle} label={`Pengeluaran · ${range.label}`} value={formatRupiah(expenses)} />
         <StatsCard icon={WalletCards} label={`Selisih kas · ${range.label}`} value={formatRupiah(difference)} />
-        <StatsCard icon={PiggyBank} label="Saldo kas saat ini" value={formatRupiah(currentBalance)} />
+        <StatsCard icon={PiggyBank} label="Saldo kas saat ini" value={formatRupiah(summary.current_balance)} />
       </div>
     </section>
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{operationalStats.map(([Icon, label, value]) => <StatsCard key={label} icon={Icon} label={label} value={value}/>)}</div>

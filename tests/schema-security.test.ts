@@ -8,6 +8,7 @@ const profileRegions=readFileSync(resolve("supabase/migrations/202611170007_prof
 const profileRegionCodes=readFileSync(resolve("supabase/migrations/202611170008_profile_region_codes.sql"),"utf8");
 const adminLockDate=readFileSync(resolve("supabase/migrations/202611180002_admin_lock_class_date.sql"),"utf8");
 const cashTransactions=readFileSync(resolve("supabase/migrations/202611230001_cash_transactions.sql"),"utf8");
+const dashboardSummary=readFileSync(resolve("supabase/migrations/202611230002_admin_dashboard_summary.sql"),"utf8");
 
 describe("jaminan schema dan keamanan",()=>{
   it("mengaktifkan RLS pada seluruh tabel operasional",()=>{
@@ -73,5 +74,12 @@ describe("jaminan schema dan keamanan",()=>{
     expect(cashTransactions).toContain('create policy "cash transactions admin insert"');
     expect(cashTransactions).toContain("bucket_id='cash-receipts' and public.is_admin()");
     expect(cashTransactions).toContain("file_size_limit,allowed_mime_types");
+  });
+  it("ringkasan dashboard digabung dalam RPC khusus admin",()=>{
+    expect(dashboardSummary).toContain("public.admin_dashboard_summary");
+    expect(dashboardSummary).toContain("public.is_admin(auth.uid())");
+    expect(dashboardSummary).toContain("period_manual_income");
+    expect(dashboardSummary).toContain("current_balance");
+    expect(dashboardSummary).toContain("grant execute on function public.admin_dashboard_summary");
   });
 });
