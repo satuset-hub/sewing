@@ -20,6 +20,21 @@
 html { scroll-behavior: smooth; }
 body { background: #FCF3EC; color: #432D2A; font-family: var(--font-sans); }
 button, a, input, select, textarea { outline-color: #C85D71; }
+:where(button, a, summary, label[for], [role="button"]) {
+  -webkit-tap-highlight-color: rgba(200, 93, 113, .22);
+  touch-action: manipulation;
+}
+:where([aria-current="page"], [aria-selected="true"], [aria-pressed="true"]) {
+  -webkit-tap-highlight-color: transparent;
+}
+details[open] > summary { color: var(--color-primary); }
+
+@media (hover: none) and (pointer: coarse) {
+  :where(button:not(:disabled), a, summary, label[for], [role="button"]):active {
+    filter: brightness(.82);
+    opacity: .78;
+  }
+}
 ::selection { background: #F4CE82; color: #432D2A; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 
