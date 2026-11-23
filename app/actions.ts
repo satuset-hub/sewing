@@ -209,6 +209,54 @@ export async function verifyPaymentAction(formData: FormData) {
   revalidatePath("/admin"); revalidatePath("/admin/pendaftaran"); redirect(`/admin/pendaftaran/${bookingId}?saved=1`);
 }
 
+export async function saveCashTransactionAction(formData: FormData) {
+  const auth = await requireAdmin();
+  const transactionType = String(formData.get("transactionType") || "");
+  const transactionDate = String(formData.get("transactionDate") || "");
+  const amount = Number(formData.get("amount"));
+  const category = String(formData.get("category") || "").trim();
+  const description = String(formData.get("description") || "").trim();
+  const receipt = formData.get("receipt");
+  const validDate = /^\d{4}-\d{2}-\d{2}$/.test(transactionDate) && !Number.isNaN(Date.parse(`${transactionDate}T00:00:00+07:00`));
+  const validType = transactionType === "INCOME" || transactionType === "EXPENSE";
+  const validReceipt = receipt instanceof File && receipt.size > 0;
+  const allowedMimeTypes = ["image/jpeg", "image/png", "image/webp", "application/pdf"];
+
+  if (!validType || !validDate || !Number.isFinite(amount) || amount <= 0 || amount > 9999999999 || category.length < 2 || category.length > 50 || description.length < 2 || description.length > 200) {
+    redirect("/admin?cashError=" + encodeURIComponent("Data transaksi belum lengkap atau tidak valid.") + "#keuangan");
+  }
+  if (validReceipt && (receipt.size > 5 * 1024 * 1024 || !allowedMimeTypes.includes(receipt.type))) {
+    redirect("/admin?cashError=" + encodeURIComponent("Struk harus JPG, PNG, WebP, atau PDF dengan ukuran maksimal 5 MB.") + "#keuangan");
+  }
+
+  const supabase = await createClient();
+  let receiptPath: string | null = null;
+  if (validReceipt) {
+    const extensions: Record<string, string> = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp", "application/pdf": "pdf" };
+    receiptPath = `${auth.user.id}/${transactionDate}/${crypto.randomUUID()}.${extensions[receipt.type]}`;
+    const { error: uploadError } = await supabase.storage.from("cash-receipts").upload(receiptPath, await receipt.arrayBuffer(), { contentType: receipt.type, upsert: false });
+    if (uploadError) redirect("/admin?cashError=" + encodeURIComponent("Foto struk belum berhasil diunggah.") + "#keuangan");
+  }
+
+  const { error } = await supabase.from("cash_transactions").insert({
+    transaction_type: transactionType,
+    source: validReceipt ? "RECEIPT" : "MANUAL",
+    transaction_date: transactionDate,
+    amount,
+    category,
+    description,
+    receipt_path: receiptPath,
+    created_by: auth.user.id,
+  });
+  if (error) {
+    if (receiptPath) await supabase.storage.from("cash-receipts").remove([receiptPath]);
+    redirect("/admin?cashError=" + encodeURIComponent("Transaksi belum berhasil disimpan.") + "#keuangan");
+  }
+
+  revalidatePath("/admin");
+  redirect("/admin?cashSaved=1#keuangan");
+}
+
 export async function saveSettingsAction(formData: FormData) {
   const auth = await requireAdmin();
   const allowed = ["business_name","business_description","business_phone","business_address","business_maps_url","instagram_url","logo_url","banner_url","teacher_photo_url","default_capacity","default_start_time","default_end_time","active_weekdays","reservation_timeout_enabled","reservation_timeout_hours","booking_advance_limit_days","booking_cutoff_hours","cancellation_policy","payment_bank_name","payment_account_number","payment_account_holder","payment_instructions","whatsapp_booking_template","whatsapp_payment_template","website_maintenance_mode","seo_title","seo_description"];

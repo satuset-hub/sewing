@@ -7,6 +7,7 @@ const multiSession=readFileSync(resolve("supabase/migrations/202611170006_multi_
 const profileRegions=readFileSync(resolve("supabase/migrations/202611170007_profile_regions.sql"),"utf8");
 const profileRegionCodes=readFileSync(resolve("supabase/migrations/202611170008_profile_region_codes.sql"),"utf8");
 const adminLockDate=readFileSync(resolve("supabase/migrations/202611180002_admin_lock_class_date.sql"),"utf8");
+const cashTransactions=readFileSync(resolve("supabase/migrations/202611230001_cash_transactions.sql"),"utf8");
 
 describe("jaminan schema dan keamanan",()=>{
   it("mengaktifkan RLS pada seluruh tabel operasional",()=>{
@@ -65,5 +66,12 @@ describe("jaminan schema dan keamanan",()=>{
     expect(adminLockDate).toContain("THEME_HAS_ACTIVE_BOOKINGS");
     expect(adminLockDate).toContain("locked_by_admin=true");
     expect(adminLockDate).toContain("grant execute on function public.admin_lock_class_date");
+  });
+  it("transaksi kas dan struk hanya dapat diakses admin",()=>{
+    expect(cashTransactions).toContain("alter table public.cash_transactions enable row level security");
+    expect(cashTransactions).toContain('create policy "cash transactions admin read"');
+    expect(cashTransactions).toContain('create policy "cash transactions admin insert"');
+    expect(cashTransactions).toContain("bucket_id='cash-receipts' and public.is_admin()");
+    expect(cashTransactions).toContain("file_size_limit,allowed_mime_types");
   });
 });
