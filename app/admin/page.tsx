@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { ArrowDownCircle, ArrowUpCircle, CalendarCheck2, CalendarClock, ClipboardList, CreditCard, Hourglass, PiggyBank, Plus, UsersRound, WalletCards } from "lucide-react";
 import { StatsCard } from "@/components/admin/stats-card";
+import { MonthFilter } from "@/components/admin/month-filter";
 import { PageHeader } from "@/components/shared/page-header";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateID, formatRupiah } from "@/lib/utils";
@@ -82,13 +82,10 @@ export default async function AdminDashboard({ searchParams }: { searchParams: S
   return <>
     <PageHeader eyebrow="Dashboard admin" title="Ringkasan operasional" description="Data langsung dari Supabase, diperbarui setiap halaman dimuat." />
     <section id="keuangan" className="mb-10 scroll-mt-6">
-      <div className="mb-4 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div><p className="text-xs font-bold uppercase tracking-[.18em] text-primary">Keuangan</p><h2 className="mt-1 font-serif text-2xl font-bold">Ringkasan kas</h2><p className="mt-1 text-sm text-muted">Pembayaran kursus terverifikasi masuk otomatis. Saldo dihitung sejak pencatatan dimulai.</p></div>
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="mb-4 flex flex-wrap items-center justify-end gap-2">
           {[["week", "Minggu ini"], ["month", "Bulanan"], ["all", "Semua"]].map(([value, label]) => <Link key={value} href={`/admin?period=${value}${value === "month" ? `&month=${month}` : ""}#keuangan`} className={`rounded-full border px-4 py-2 text-xs font-semibold ${period === value ? "border-primary bg-primary text-white" : "bg-white hover:bg-cream"}`}>{label}</Link>)}
-          {period === "month" && <form method="get" className="flex items-center gap-2"><input type="hidden" name="period" value="month"/><Input aria-label="Pilih bulan" type="month" name="month" defaultValue={month} className="h-9 w-40"/><button className="rounded-full border bg-white px-3 py-2 text-xs font-semibold" type="submit">Tampilkan</button></form>}
+          {period === "month" && <MonthFilter month={month} />}
           <Button asChild size="sm"><Link href="/admin/transaksi#tambah"><Plus className="size-4"/>Tambah Transaksi</Link></Button>
-        </div>
       </div>
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatsCard icon={ArrowUpCircle} label={`Pemasukan · ${range.label}`} value={formatRupiah(income)} />

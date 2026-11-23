@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { Paperclip } from "lucide-react";
 import { CashTransactionForm } from "@/components/admin/cash-transaction-form";
+import { MonthFilter } from "@/components/admin/month-filter";
 import { PageHeader } from "@/components/shared/page-header";
 import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { requireAdmin } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { formatDateID, formatRupiah } from "@/lib/utils";
@@ -63,7 +63,7 @@ export default async function TransactionsPage({ searchParams }: { searchParams:
         <div><h2 className="font-serif text-xl font-bold">Daftar transaksi</h2><p className="text-xs text-muted">{range.label} · {transactions.length} transaksi</p></div>
         <div className="flex flex-wrap items-center gap-2">
           {[["week", "Minggu ini"], ["month", "Bulanan"], ["all", "Semua"]].map(([value, label]) => <Link key={value} href={`/admin/transaksi?period=${value}${value === "month" ? `&month=${month}` : ""}#transaksi`} className={`rounded-full border px-4 py-2 text-xs font-semibold ${period === value ? "border-primary bg-primary text-white" : "bg-white hover:bg-cream"}`}>{label}</Link>)}
-          {period === "month" && <form method="get" className="flex items-center gap-2"><input type="hidden" name="period" value="month"/><Input aria-label="Pilih bulan" type="month" name="month" defaultValue={month} className="h-9 w-40"/><button className="rounded-full border bg-white px-3 py-2 text-xs font-semibold" type="submit">Tampilkan</button></form>}
+          {period === "month" && <MonthFilter month={month} />}
         </div>
       </div>
       <div className="overflow-x-auto"><table className="w-full min-w-[780px] text-left text-sm"><thead className="bg-cream text-xs text-muted"><tr>{["Tanggal", "Keterangan", "Kategori", "Sumber", "Masuk", "Keluar", "Bukti"].map((heading) => <th className="p-4" key={heading}>{heading}</th>)}</tr></thead><tbody>
